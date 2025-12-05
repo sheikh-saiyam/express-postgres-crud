@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import express, { Request, Response } from "express";
-import { Pool } from "pg";
 import path from "path";
+import { Pool } from "pg";
 
 const app = express();
 const port = 5000;
@@ -106,6 +106,66 @@ app.get("/users/:id", async (req: Request, res: Response) => {
       message: "User retrieved successfully!",
       data: result.rows[0],
     });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: (error as Error).message,
+    });
+  }
+});
+
+app.put("/users/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, email } = req.body;
+
+    const result = await pool.query(
+      `
+      UPDATE users SET name=$1, email=$2 WHERE id=$3 RETURNING *
+      `,
+      [name, email, id]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        message: "User not found!",
+        data: null,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "User updated successfully!",
+      data: result.rows[0],
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: (error as Error).message,
+    });
+  }
+});
+
+app.delete("/users/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(`DELETE FROM users WHERE id=$1`, [id]);
+
+    if (result.rowCount === 0) {
+      res.status(404).json({
+        success: false,
+        message: "User not found!",
+        data: null,
+      });
+    } else {
+      res.status(200).json({
+        success: true,
+        message: "User deleted successfully!",
+        data: null,
+      });
+    }
   } catch (error) {
     res.status(500).json({
       success: false,
