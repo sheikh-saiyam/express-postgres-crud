@@ -1,13 +1,19 @@
 import dotenv from "dotenv";
-import express, { Request, Response } from "express";
+import express, { NextFunction, Request, Response } from "express";
 import path from "path";
 import { Pool } from "pg";
 
 const app = express();
 const port = 5000;
 
+const logger = (req: Request, res: Response, next: NextFunction) => {
+  console.log(`${req.method} ${req.originalUrl} - ${new Date().toISOString()}`);
+  next();
+};
+
 dotenv.config({ path: path.join(process.cwd(), ".env") });
 app.use(express.json());
+app.use(logger);
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -32,7 +38,7 @@ const initDB = async () => {
     id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
     title VARCHAR(200) NOT NULL,
-    description TEXT NOT NULL,
+    description TEXT,
     completed BOOLEAN DEFAULT false,
     due_date DATE,
     created_At TIMESTAMP DEFAULT NOW(),
@@ -45,6 +51,8 @@ initDB();
 app.get("/", async (req: Request, res: Response) => {
   res.send("Hello from Express-PostgreSQL-CRUD server");
 });
+
+//? USERS CRUD
 
 app.post("/users", async (req: Request, res: Response) => {
   const { name, email } = req.body;
@@ -172,6 +180,145 @@ app.delete("/users/:id", async (req: Request, res: Response) => {
       message: (error as Error).message,
     });
   }
+});
+
+//? TODOS CRUD
+
+app.post("/todos", async (req: Request, res: Response) => {
+  const { user_id, title } = req.body;
+
+  try {
+    const result = await pool.query(
+      `
+      INSERT INTO todos(user_id, title) VALUES($1, $2) RETURNING *
+      `,
+      [user_id, title]
+    );
+
+    res.send({
+      success: false,
+      message: "Todos created successfully!",
+      data: result.rows[0],
+    });
+  } catch (error) {
+    res.send({
+      success: false,
+      message: (error as Error).message,
+    });
+  }
+});
+
+app.get("/todos", async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query(`SELECT * FROM todos`);
+
+    res.status(200).json({
+      success: true,
+      message: "Todos retrieved successfully!",
+      data: result.rows,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: (error as Error).message,
+    });
+  }
+});
+
+app.get("/todos/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(`SELECT * FROM users WHERE id=$1`, [id]);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        message: "Todo not found!",
+        data: null,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Todo retrieved successfully!",
+      data: result.rows[0],
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: (error as Error).message,
+    });
+  }
+});
+
+app.put("/todos/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { title } = req.body;
+
+    const result = await pool.query(
+      `
+      UPDATE todos SET title=$1 WHERE id=$2 RETURNING *
+      `,
+      [title, id]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        message: "Todo not found!",
+        data: null,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Todo updated successfully!",
+      data: result.rows[0],
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: (error as Error).message,
+    });
+  }
+});
+
+app.delete("/todos/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(`DELETE FROM todos WHERE id=$1`, [id]);
+
+    if (result.rowCount === 0) {
+      res.status(404).json({
+        success: false,
+        message: "Todo not found!",
+        data: null,
+      });
+    } else {
+      res.status(200).json({
+        success: true,
+        message: "Todo deleted successfully!",
+        data: null,
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: (error as Error).message,
+    });
+  }
+});
+
+//? NOT FOUND ROUTE
+app.use((req: Request, res: Response) => {
+  res.status(404).json({
+    success: false,
+    message: "Route not found!",
+    path: req.path,
+  });
 });
 
 app.listen(port, () => {
