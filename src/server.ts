@@ -1,11 +1,12 @@
 import dotenv from "dotenv";
 import express, { Request, Response } from "express";
 import { Pool } from "pg";
+import path from "path";
 
 const app = express();
 const port = 5000;
 
-dotenv.config();
+dotenv.config({ path: path.join(process.cwd(), ".env") });
 app.use(express.json());
 
 const pool = new Pool({
@@ -43,6 +44,74 @@ initDB();
 
 app.get("/", async (req: Request, res: Response) => {
   res.send("Hello from Express-PostgreSQL-CRUD server");
+});
+
+app.post("/users", async (req: Request, res: Response) => {
+  const { name, email } = req.body;
+
+  try {
+    const result = await pool.query(
+      `
+      INSERT INTO users(name, email) VALUES($1, $2) RETURNING *
+      `,
+      [name, email]
+    );
+
+    res.send({
+      success: false,
+      message: "User created successfully!",
+      data: result.rows[0],
+    });
+  } catch (error) {
+    res.send({
+      success: false,
+      message: (error as Error).message,
+    });
+  }
+});
+
+app.get("/users", async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query(`SELECT * FROM users`);
+
+    res.status(200).json({
+      success: true,
+      message: "Users retrieved successfully!",
+      data: result.rows,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: (error as Error).message,
+    });
+  }
+});
+
+app.get("/users/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(`SELECT * FROM users WHERE id = $1`, [id]);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        message: "User not found!",
+        data: null,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "User retrieved successfully!",
+      data: result.rows[0],
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: (error as Error).message,
+    });
+  }
 });
 
 app.listen(port, () => {
