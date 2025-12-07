@@ -2,6 +2,7 @@ import express, { Request, Response } from "express";
 import config from "./config";
 import initDB from "./config/db";
 import logger from "./middleware/logger";
+import { authRoutes } from "./modules/auth/auth.routes";
 import { todoRoutes } from "./modules/todo/todo.routes";
 import { userRoutes } from "./modules/user/user.routes";
 
@@ -20,6 +21,7 @@ app.get("/", async (req: Request, res: Response) => {
 //* ROUTES
 app.use("/users", userRoutes);
 app.use("/todos", todoRoutes);
+app.use("/auth", authRoutes);
 
 //* NOT FOUND ROUTE
 app.use((req: Request, res: Response) => {
